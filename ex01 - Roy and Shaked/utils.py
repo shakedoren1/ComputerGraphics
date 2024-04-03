@@ -88,6 +88,20 @@ class SeamImage:
             - keep in mind that values must be in range [0,1]
             - np.gradient or other off-the-shelf tools are NOT allowed, however feel free to compare yourself to them
         """
+
+        gs = self.resized_gs[:, :, 0].astype(float)
+
+        # Calculate gradients
+        horizontal_gradient = np.abs(gs[:, 1:] - gs[:, :-1])
+        last_column = np.expand_dims(gs[:, -1], axis=1)  # Extract the last column
+        horizontal_gradient = np.concatenate((horizontal_gradient, last_column), axis=1)
+        
+        vertical_gradient = np.abs(gs[1:, :] - gs[:-1, :]) 
+        last_row = np.expand_dims(gs[-1, :], axis=0)  # Extract the last row
+        vertical_gradient = np.concatenate((vertical_gradient, last_row), axis=0)
+        
+        return np.sqrt(np.square(horizontal_gradient) + np.square(vertical_gradient))
+
         def calc_pixel_energy(padded_gs, x, y):
             """ Calculate energy of a pixel
 
@@ -311,7 +325,7 @@ class VerticalSeamImage(SeamImage):
             # update self.E and self.M efficiently
             self.init_mats()
             
-            print(f"removed seam {n+1}, shape is now: ", self.resized_gs.shape)
+            # print(f"removed seam {n+1}, shape is now: ", self.resized_gs.shape)
             # add seam_idx to seam_history
             self.seam_history.append((n, seam_idx))
                                 
