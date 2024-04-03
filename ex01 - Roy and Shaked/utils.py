@@ -108,7 +108,7 @@ class SeamImage:
         # Pad boundaries with 0.5 to prevent outlier values
         padded_gs = np.pad(self.resized_gs, ((0, 1), (0, 1), (0, 0)), mode='constant', constant_values=0.5)
         
-        E = np.zeros_like(self.resized_gs)
+        E = np.zeros_like(self.resized_gs)[:,:,0].astype(float)
         
         for i in range(E.shape[0]):
             for j in range(E.shape[1]):
@@ -177,47 +177,14 @@ class VerticalSeamImage(SeamImage):
         """
         super().__init__(*args, **kwargs)
         try:
-            self.M, self.backtrack_mat = self.calc_M_bt()
+            self.M, self.backtrack_mat = VerticalSeamImage.calc_M_bt(self.E)
         except NotImplementedError as e:
             print(e)
-    
+        
+        
     @staticmethod
-    # @jit(nopython=True)
-    def calc_M_ij(M, E, i,j):
-            has_left_neighbor = j > 0
-            has_right_neighbor =  j < E.shape[1] - 1
-            
-            if has_left_neighbor and has_right_neighbor:
-                vert_cost = M[i-1,j] + np.abs(E[i,j-1] - E[i,j+1])
-                left_cost = M[i-1,j-1] + np.abs(E[i,j-1] - E[i-1,j])
-                right_cost = M[i-1,j+1] + np.abs(E[i,j+1] - E[i-1,j])
-            
-            elif has_right_neighbor:
-                vert_cost = M[i-1,j]
-                left_cost = np.inf
-                right_cost = M[i-1,j+1] + np.abs(E[i,j+1] - E[i-1,j])
-                
-            else: # has_left_neighbor
-                vert_cost = M[i-1,j]
-                left_cost = M[i-1,j-1] + np.abs(E[i,j-1] - E[i-1,j])
-                right_cost = np.inf
-                
-            if vert_cost <= left_cost and vert_cost <= right_cost:
-                idx_to_bt = [i-1, j]
-                smallest_cost = vert_cost
-                
-            elif left_cost <= vert_cost and left_cost <= right_cost:
-                idx_to_bt = [i-1, j-1]
-                smallest_cost = left_cost
-            else:
-                idx_to_bt = [i-1, j+1]
-                smallest_cost = right_cost
-                
-            return E[i,j] + smallest_cost, idx_to_bt
-        
-        
-    # @NI_decor
-    def calc_M_bt(self):
+    @jit(nopython=True)
+    def calc_M_bt(E):
         """ Calculates the matrix M discussed in lecture (with forward-looking cost)
 
         Returns:
@@ -227,15 +194,42 @@ class VerticalSeamImage(SeamImage):
             As taught, the energy is calculated from top to bottom.
             You might find the function 'np.roll' useful.
         """            
+        def calc_M_ij(M, E, i,j):
+                has_left_neighbor = j > 0
+                has_right_neighbor =  j < E.shape[1] - 1
+                
+                if has_left_neighbor and has_right_neighbor:
+                    vert_cost = M[i-1,j] + np.abs(E[i,j-1] - E[i,j+1])
+                    left_cost = M[i-1,j-1] + np.abs(E[i,j-1] - E[i-1,j])
+                    right_cost = M[i-1,j+1] + np.abs(E[i,j+1] - E[i-1,j])
+                
+                elif has_right_neighbor:
+                    vert_cost = M[i-1,j]
+                    left_cost = np.inf
+                    right_cost = M[i-1,j+1] + np.abs(E[i,j+1] - E[i-1,j])
+                    
+                else: # has_left_neighbor
+                    vert_cost = M[i-1,j]
+                    left_cost = M[i-1,j-1] + np.abs(E[i,j-1] - E[i-1,j])
+                    right_cost = np.inf
+                
+                if vert_cost <= left_cost and vert_cost <= right_cost:
+                    idx_to_bt = [i-1, j]
+                elif left_cost <= vert_cost and left_cost <= right_cost:
+                    idx_to_bt = [i-1, j-1]
+                else:
+                    idx_to_bt = [i-1, j+1]
 
-        M = np.zeros_like(self.E, dtype=np.float32)
-        backtrack_mat = np.empty((self.E.shape[0], self.E.shape[1], 2),int)
+                return E[i,j] + np.minimum(vert_cost, np.minimum(left_cost,right_cost)), idx_to_bt
+
+        M = np.zeros_like(E, dtype=np.float32)
+        backtrack_mat = np.zeros((E.shape[0], E.shape[1], 2),dtype=np.int64)
         
-        M[0, :] = self.E[0, :]
+        M[0, :] = E[0, :]
         
         for i in range(1, M.shape[0]):
             for j in range(M.shape[1]):
-                M[i, j], backtrack_mat[i,j] = VerticalSeamImage.calc_M_ij(M, self.E, i, j)
+                M[i, j], backtrack_mat[i,j] = calc_M_ij(M, E, i, j)
                 
         return M, backtrack_mat
         
@@ -363,7 +357,7 @@ class VerticalSeamImage(SeamImage):
 
     def init_mats(self):
         self.E = self.calc_gradient_magnitude()
-        self.M, self.backtrack_mat = self.calc_M_bt()
+        self.M, self.backtrack_mat = VerticalSeamImage.calc_M_bt(self.E)
         self.mask = np.ones_like(self.M, dtype=bool)
 
     # @NI_decor
@@ -408,7 +402,7 @@ class VerticalSeamImage(SeamImage):
         In order to apply the removal, you might want to extend the seam mask to support 3 channels (rgb) using: 3d_mak = np.stack([1d_mask] * 3, axis=2), and then use it to create a resized version.
         """
         # create mask array
-        h, w, _ = self.M.shape
+        h, w = self.M.shape
         mask = np.ones((h, w), dtype=bool)
         
         # find minimum value in M's last row
@@ -461,7 +455,7 @@ class VerticalSeamImage(SeamImage):
 
     # @NI_decor
     @staticmethod
-    @jit(nopython=True)
+    # @jit(nopython=True)
     def calc_bt(M, E, backtrack_mat):
         """ Fills the BT back-tracking index matrix. This function is static in order to support Numba. To use it, uncomment the decorator above.
         
