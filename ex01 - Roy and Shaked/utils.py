@@ -101,50 +101,6 @@ class SeamImage:
         vertical_gradient = np.concatenate((vertical_gradient, last_row), axis=0)
         
         return np.sqrt(np.square(horizontal_gradient) + np.square(vertical_gradient))
-
-        def calc_pixel_energy(padded_gs, x, y):
-            """ Calculate energy of a pixel
-
-            Parameters:
-                x (int): horizontal index of the pixel
-                y (int): vertical index of the pixel
-
-            Returns:
-                energy of the pixel (float32)
-
-            Guidelines & hints:
-                - The energy of a pixel is the sum of the absolute value of the gradient of the pixel
-            """
-            horizontal_gradient = padded_gs[x, y+1] - padded_gs[x, y]
-            vertical_gradient = padded_gs[x+1, y] - padded_gs[x, y]
-            return np.sqrt(np.square(horizontal_gradient) + np.square(vertical_gradient))
-    
-        # Pad boundaries with 0.5 to prevent outlier values
-        padded_gs = np.pad(self.resized_gs, ((0, 1), (0, 1), (0, 0)), mode='constant', constant_values=0.5)
-        
-        E = np.zeros_like(self.resized_gs)[:,:,0].astype(float)
-        
-        for i in range(E.shape[0]):
-            for j in range(E.shape[1]):
-                E[i, j] = calc_pixel_energy(padded_gs,i, j)
-        
-        return E
-    
-        # Calculate horizontal gradient
-        horizontal_gradient = np.roll(self.gs, -1, axis=1) - self.gs
-
-        # Calculate vertical gradient
-        vertical_gradient = np.roll(self.gs, -1, axis=0) - self.gs
-
-        # Compute energy matrix
-        energy_matrix = np.sqrt(horizontal_gradient ** 2 + vertical_gradient ** 2)
-        
-        # Map [-1,1] gradient values to grayscale values [0,1]
-        # energy_matrix = (energy_matrix + 1) / 2
-        
-        print(np.array_equal(energy_matrix,energy_matrix_1))
-        return energy_matrix
-
         
     def calc_M_bt(self):
         pass
@@ -159,7 +115,24 @@ class SeamImage:
         pass
 
     def rotate_mats(self, clockwise):
-        pass
+        # Setting k to -1 it clockwise, 1 if counter-clockwise
+        k = -1 if clockwise else 1
+
+        # Rotate the main matrices
+        self.rgb = np.rot90(self.rgb, k)
+        self.resized_rgb = np.rot90(self.resized_rgb, k)
+        self.gs = np.rot90(self.gs, k)
+        self.resized_gs = np.rot90(self.resized_gs, k)
+        self.seams_rgb = np.rot90(self.seams_rgb, k)
+        self.E = np.rot90(self.E, k)
+        self.M = np.rot90(self.M, k)
+        self.backtrack_mat = np.rot90(self.backtrack_mat, k)
+
+        self.idx_map_h = np.rot90(self.idx_map_h, k)
+        self.idx_map_v = np.rot90(self.idx_map_v, -k)
+
+        # After rotation, update the height and width attributes
+        self.h, self.w = self.resized_rgb.shape[:2]
 
     def init_mats(self):
         pass
@@ -246,45 +219,9 @@ class VerticalSeamImage(SeamImage):
                 M[i, j], backtrack_mat[i,j] = calc_M_ij(M, E, i, j)
                 
         return M, backtrack_mat
-        
-        padded_gs = np.pad(self.gs, pad_width=1, mode='constant', constant_values=np.inf)
-
-        # Calculate the gradients for C_V, C_L, and C_R
-        gradient_V = np.abs(np.roll(padded_gs, -1, axis=0) - np.roll(padded_gs, 1, axis=0))
-        gradient_L = np.abs(np.roll(padded_gs, -1, axis=1) - np.roll(padded_gs, 1, axis=1)) + \
-                    np.abs(np.roll(padded_gs, -1, axis=0) - np.roll(padded_gs, -1, axis=1))
-        gradient_R = np.abs(np.roll(padded_gs, -1, axis=1) - np.roll(padded_gs, 1, axis=1)) + \
-                    np.abs(np.roll(padded_gs, 1, axis=1) - np.roll(padded_gs, -1, axis=0))
-
-        # Initialize the matrix M with zeros
-        M = np.zeros_like(self.E, dtype=np.float32)
-        padded_M = np.copy(padded_gs)
-
-        # Calculate the energy for the first row
-        M[0, :] = self.E[0, :]
-        padded_M[1, 1:self.w] = self.E[0, :]
-
-        # Iterate over each row in the image
-        for i in range(1, self.h):
-            # Calculate the value of c_V, c_L, and c_R for the current row
-            c_V = gradient_V[i, 1:self.w]
-            c_L = gradient_L[i, 1:self.w]
-            c_R = gradient_R[i, 1:self.w]
-            print(c_V.shape)
-
-        
-            # Calculate M(i, j) based on the given formula
-            M[i, :] = self.E[i, :] + np.minimum(padded_M[i - 1, 1:self.w] + c_V,
-                                                np.minimum(np.roll(padded_M[i - 1, 1:self.w], -1, axis=1) + c_R,
-                                                        np.roll(padded_M[i - 1, 1:self.w], 1, axis=1) + c_L))
-            
-            padded_M[i, 1:self.w] = M[i, :]
-
-        return M
-
 
     # @NI_decor
-    def seams_removal(self, num_remove: int):
+    def seams_removal(self, num_remove: int, horizontal=False):
         """ Iterates num_remove times and removes num_remove vertical seams
         
         Parameters:
@@ -308,59 +245,49 @@ class VerticalSeamImage(SeamImage):
             - removing seams couple of times (call the function more than once)
             - visualize the original image with removed seams marked (for comparison)
         """
-        self.init_mats()
         for n in range(num_remove):
+            # Update E and M mats
+            self.init_mats()
+            
             # Find minimum cell in bottom row in M
             bottom_idx_seam = np.argmin(self.M[-1])
             
             # backtrack this cell up to top row - get a list of indices seam_idx
             seam_idx = self.backtrack_seam([self.M.shape[0]-1, bottom_idx_seam])
             
+            # color seam_idx pixels in self.seams_rgb
+            self.color_seam(seam_idx, horizontal)
+            
             # update self.idx_map_h, self.idx_map_v
-            self.update_idx_maps(seam_idx)
+            self.update_idx_maps(seam_idx, horizontal)
                         
             # delete these seam_idx pixels from self.resized_rgb
             self.remove_seam()
             
-            # update self.E and self.M efficiently
-            self.init_mats()
-            
-            # print(f"removed seam {n+1}, shape is now: ", self.resized_gs.shape)
             # add seam_idx to seam_history
             self.seam_history.append((n, seam_idx))
-                                
-################ DEBUG ##################################### DEBUG ###########################
-    def test_update_idx_maps(self):
-        size = 5
-
-        # Initialize idx_map_h
-        idx_map_h = np.tile(np.arange(size), (size, 1))
-
-        # Initialize idx_map_v
-        idx_map_v = np.tile(np.arange(size).reshape(-1, 1), (1, size))
-
-        print(idx_map_h)
-        print(idx_map_v)
-        
-        seam_idx = [(4, 3), (3, 3), (2, 3), (1, 2), (0, 1)]
-        self.update_idx_maps(idx_map_h, idx_map_v, seam_idx)
-        
-        print(idx_map_h)
-        print(idx_map_v)
-################ DEBUG ##################################### DEBUG ###########################
-
-    def update_mats(self):
-        pass
-        
-    def update_idx_maps(self,seam_idx):
+    
+    def color_seam(self, seam_idx, horizontal):
         # Iterate through each index (i0, j0) in seam_idx
         for i0, j0 in seam_idx:
-            # Update horizontal idx map
-            self.idx_map_h[i0, j0:] += 1
-            
-            # Update vertical idx map
-            #  if hor - rotate v clockwise and for each row increment until j
-            # self.idx_map_v[i0:, j0] += 1
+            # Color the pixel in self.seams_rgb taking into account the horizontal flag
+            if horizontal:
+                self.seams_rgb[self.idx_map_h[i0, j0], self.idx_map_v[i0, j0]] = [1, 0, 0]
+            else:
+                self.seams_rgb[self.idx_map_v[i0, j0], self.idx_map_h[i0, j0]] = [1, 0, 0]
+                
+        
+    def update_idx_maps(self, seam_idx, horizontal):
+        # Iterate through each index (i0, j0) in seam_idx
+        for i0, j0 in seam_idx:
+            if horizontal:
+                # Update vertical idx map
+                self.idx_map_v[i0, j0:] += 1
+
+            else:
+                # Update horizontal idx map
+                self.idx_map_h[i0, j0:] += 1
+
 
     def paint_seams(self):
         for s in self.seam_history:
@@ -382,7 +309,7 @@ class VerticalSeamImage(SeamImage):
             num_remove (int): number of horizontal seam to be removed
         """
         self.rotate_mats(clockwise=True)
-        self.seams_removal(num_remove)
+        self.seams_removal(num_remove, horizontal=True)
         self.rotate_mats(clockwise=False)
 
     # @NI_decor
@@ -400,7 +327,7 @@ class VerticalSeamImage(SeamImage):
         """
         i, j = idx
         seam_idx = [idx]
-        for r in range(self.M.shape[0] - 1, 1, -1):
+        for r in range(self.M.shape[0] - 1, 0, -1):
             next_step = self.backtrack_mat[i,j].tolist()
             seam_idx.insert(0, next_step)
             i, j = next_step
@@ -428,6 +355,14 @@ class VerticalSeamImage(SeamImage):
             j = self.backtrack_mat[i, j].tolist()[1]
 
         self.resized_gs = self.resized_gs[mask].reshape(h, w - 1, 1)
+        
+        # Apply the mask to each color channel
+        resized_r = self.resized_rgb[:, :, 0][mask].reshape(h, w - 1)
+        resized_g = self.resized_rgb[:, :, 1][mask].reshape(h, w - 1)
+        resized_b = self.resized_rgb[:, :, 2][mask].reshape(h, w - 1)
+
+        # Stack the channels back together to form a 3D array
+        self.resized_rgb = np.stack((resized_r, resized_g, resized_b), axis=-1)
         
     # @NI_decor
     def seams_addition(self, num_add: int):
@@ -481,8 +416,6 @@ class VerticalSeamImage(SeamImage):
             np.ndarray is a rederence type. changing it here may affected outsde.
         """
         h, w = M.shape
-    
-        
         raise NotImplementedError("TODO: Implement SeamImage.calc_bt_mat")
     
 class SCWithObjRemoval(VerticalSeamImage):
