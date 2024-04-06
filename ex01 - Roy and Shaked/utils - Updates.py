@@ -173,8 +173,11 @@ class SeamImage:
         self.M = np.rot90(self.M, k)
         self.backtrack_mat = np.rot90(self.backtrack_mat, k)
 
+        self.idx_map_h = np.rot90(self.idx_map_h, k)
+        self.idx_map_v = np.rot90(self.idx_map_v, -k)
+
         # After rotation, update the height and width attributes
-        self.h, self.w = self.rgb.shape[:2]
+        self.h, self.w = self.resized_rgb.shape[:2]
     #################################################################
 
     def init_mats(self):
@@ -300,7 +303,7 @@ class VerticalSeamImage(SeamImage):
 
 
     # @NI_decor
-    def seams_removal(self, num_remove: int):
+    def seams_removal(self, num_remove: int, horizontal=False):
         """ Iterates num_remove times and removes num_remove vertical seams
         
         Parameters:
@@ -334,8 +337,11 @@ class VerticalSeamImage(SeamImage):
             
             ############## CHANGED into a seam coloring function ##############
             # color seam_idx pixels in self.seams_rgb
-            self.color_seam(seam_idx)
+            self.color_seam(seam_idx, horizontal)
             ###################################################################
+
+            # update self.idx_map_h, self.idx_map_v
+            self.update_idx_maps(seam_idx, horizontal)
                         
             # delete these seam_idx pixels from self.resized_rgb
             self.remove_seam()
@@ -371,12 +377,26 @@ class VerticalSeamImage(SeamImage):
         pass
         
     ############## CHANGED into a seam coloring function ##############
-    def color_seam(self,seam_idx):
+    def color_seam(self, seam_idx, horizontal):
         # Iterate through each index (i0, j0) in seam_idx
         for i0, j0 in seam_idx:
-            # Color the pixel in self.seams_rgb
-            self.seams_rgb[self.idx_map_v[i0, j0], self.idx_map_h[i0, j0]] = [255, 0, 0]
+            # Color the pixel in self.seams_rgb taking into account the horizontal flag
+            if horizontal:
+                self.seams_rgb[self.idx_map_h[i0, j0], self.idx_map_v[i0, j0]] = [255, 0, 0]
+            else:
+                self.seams_rgb[self.idx_map_v[i0, j0], self.idx_map_h[i0, j0]] = [255, 0, 0]
     ###################################################################
+
+    def update_idx_maps(self, seam_idx, horizontal):
+        # Iterate through each index (i0, j0) in seam_idx
+        for i0, j0 in seam_idx:
+            if horizontal:
+                # Update vertical idx map
+                self.idx_map_v[i0, j0:] += 1
+
+            else:
+                # Update horizontal idx map
+                self.idx_map_h[i0, j0:] += 1
 
     def paint_seams(self):
         for s in self.seam_history:
@@ -398,7 +418,7 @@ class VerticalSeamImage(SeamImage):
             num_remove (int): number of horizontal seam to be removed
         """
         self.rotate_mats(clockwise=True)
-        self.seams_removal(num_remove)
+        self.seams_removal(num_remove, True)
         self.rotate_mats(clockwise=False)
 
     # @NI_decor
