@@ -344,25 +344,26 @@ class VerticalSeamImage(SeamImage):
         """
         # create mask array
         h, w = self.M.shape
-        mask = np.ones((h, w), dtype=bool)
+        self.mask = np.ones((h, w), dtype=bool)
         
         # find minimum value in M's last row
         j = np.argmin(self.M[-1])
         
         # Remove pixels specified by seam_idx from resized_gs
         for i in reversed(range(h)):
-            mask[i, j] = False
+            self.mask[i, j] = False
             j = self.backtrack_mat[i, j].tolist()[1]
 
-        self.resized_gs = self.resized_gs[mask].reshape(h, w - 1, 1)
+        self.resized_gs = self.resized_gs[self.mask].reshape(h, w - 1, 1)
         
         # Apply the mask to each color channel
-        resized_r = self.resized_rgb[:, :, 0][mask].reshape(h, w - 1)
-        resized_g = self.resized_rgb[:, :, 1][mask].reshape(h, w - 1)
-        resized_b = self.resized_rgb[:, :, 2][mask].reshape(h, w - 1)
+        resized_r = self.resized_rgb[:, :, 0][self.mask].reshape(h, w - 1)
+        resized_g = self.resized_rgb[:, :, 1][self.mask].reshape(h, w - 1)
+        resized_b = self.resized_rgb[:, :, 2][self.mask].reshape(h, w - 1)
 
         # Stack the channels back together to form a 3D array
         self.resized_rgb = np.stack((resized_r, resized_g, resized_b), axis=-1)
+        self.h, self.w = self.resized_gs.shape[:2]
         
     # @NI_decor
     def seams_addition(self, num_add: int):
@@ -426,16 +427,15 @@ class SCWithObjRemoval(VerticalSeamImage):
         super().__init__(*args, **kwargs)
         self.active_masks = active_masks
         self.obj_masks = {basename(img_path)[:-4]: self.load_image(img_path, format='L') for img_path in glob.glob('images/obj_masks/*')}
-
         try:
             self.preprocess_masks()
         except KeyError:
             print("TODO (Bonus): Create and add Jurassic's mask")
         
-        try:
-            self.M = self.calc_M_bt()
-        except NotImplementedError as e:
-            print(e)
+        # try:
+        #     self.M = self.calc_M_bt()
+        # except NotImplementedError as e:
+        #     print(e)
 
     def preprocess_masks(self):
         """ Mask preprocessing.
@@ -444,7 +444,8 @@ class SCWithObjRemoval(VerticalSeamImage):
             Guidelines & hints:
                 - for every active mask we need make it binary: {0,1}
         """
-        raise NotImplementedError("TODO: Implement SeamImage.preprocess_masks")
+        for mask_name, mask in self.obj_masks.items():
+            self.obj_masks[mask_name] = mask > 0        
         print('Active masks:', self.active_masks)
 
     # @NI_decor
@@ -455,20 +456,22 @@ class SCWithObjRemoval(VerticalSeamImage):
                 - you need to apply the masks on other matrices!
                 - think how to force seams to pass through a mask's object..
         """
-        raise NotImplementedError("TODO: Implement SeamImage.apply_mask")
+        for mask_name, mask in self.obj_masks.items():
+            if mask_name in self.active_masks:
+                self.E[mask] = -1 * 1000000
 
 
     def init_mats(self):
         self.E = self.calc_gradient_magnitude()
-        self.M = self.calc_M_bt()
         self.apply_mask() # -> added
-        self.backtrack_mat = np.zeros_like(self.M, dtype=int)
+        self.M, self.backtrack_mat = self.calc_M_bt(self.E)
         self.mask = np.ones_like(self.M, dtype=bool)
 
     def reinit(self, active_masks):
         """ re-initiates instance
         """
         self.__init__(active_masks=active_masks, img_path=self.path)
+        self.apply_mask()
 
     def remove_seam(self):
         """ A wrapper for super.remove_seam method. takes care of the masks.
