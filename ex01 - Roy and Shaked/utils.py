@@ -433,7 +433,7 @@ class SCWithObjRemoval(VerticalSeamImage):
             print("TODO (Bonus): Create and add Jurassic's mask")
         
         # try:
-        #     self.M = self.calc_M_bt()
+        #     self.M, self.backtrack_mat = self.calc_M_bt()
         # except NotImplementedError as e:
         #     print(e)
 
@@ -456,9 +456,10 @@ class SCWithObjRemoval(VerticalSeamImage):
                 - you need to apply the masks on other matrices!
                 - think how to force seams to pass through a mask's object..
         """
+        self.E = self.E + 20
         for mask_name, mask in self.obj_masks.items():
             if mask_name in self.active_masks:
-                self.E[mask] = -1 * 1000000
+                self.E[mask] = 0
 
 
     def init_mats(self):
