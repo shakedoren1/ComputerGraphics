@@ -18,6 +18,9 @@ def render_scene(camera, ambient, lights, objects, screen_size, max_depth):
 
             color = np.zeros(3)
 
+            # The reflection coefficient initialized
+            reflection = 1.0
+
             # This is the main loop where each pixel color is computed.
             ############### TODO ###############
             for _ in range(max_depth):
@@ -31,13 +34,12 @@ def render_scene(camera, ambient, lights, objects, screen_size, max_depth):
                 intersection += 1e-4 * normal                
 
                 # Find the color of the pixel
-                color = get_color(origin, ambient, lights, objects, nearest_object, normal, intersection)
+                illumination = get_color(origin, ambient, lights, objects, nearest_object, normal, intersection, max_depth, 1)
 
-                ## reflection
-                # color += reflection * illumination
-                # reflection *= nearest_object.reflection
-
-                # ray = Ray(shifted_point, reflected(ray.direction, normal_to_surface))
+                # reflection calculation
+                color += reflection * illumination
+                reflection *= nearest_object.reflection
+                ray = Ray(intersection, reflected(ray.direction, normal))
 
             ###################################
             
@@ -49,7 +51,7 @@ def render_scene(camera, ambient, lights, objects, screen_size, max_depth):
 ############### TODO ###############
 
 # A function that calculates the color of a pixel according to the Phong reflection model
-def get_color(origin, ambient, lights, objects, nearest_object, normal, intersection):
+def get_color(origin, ambient, lights, objects, nearest_object, normal, intersection, max_depth, level, reflection=1.0):
     color = np.zeros((3))
     
     # Ambient calculation

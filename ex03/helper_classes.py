@@ -6,7 +6,7 @@ def normalize(vector):
     return vector / np.linalg.norm(vector)
 
 
-# This function gets a vector and the normal of the surface it hit
+# This function gets a vector and the normal of the surface it hits
 # This function returns the vector that reflects from the surface
 def reflected(vector, axis):
     v = np.array([0,0,0])
@@ -75,20 +75,30 @@ class PointLight(LightSource):
 class SpotLight(LightSource):
     def __init__(self, intensity, position, direction, kc, kl, kq):
         super().__init__(intensity)
-        # TODO
+        ################## TODO ##################
+        self.position = np.array(position)
+        self.direction = np.array(direction)
+        self.kc = kc
+        self.kl = kl
+        self.kq = kq
+        ##########################################
 
     # This function returns the ray that goes from the light source to a point
     def get_light_ray(self, intersection):
-        #TODO
-        pass
+        ################## TODO ##################
+        return Ray(intersection, normalize(self.position - intersection))
+        ##########################################
 
     def get_distance_from_light(self, intersection):
-        #TODO
-        pass
+        ################## TODO ##################
+        return np.linalg.norm(intersection - self.position)
+        ##########################################
 
     def get_intensity(self, intersection):
-        #TODO
-        pass
+        ################## TODO ##################
+        d = self.get_distance_from_light(intersection)
+        return None ######?
+        ##########################################
 
 
 class Ray:
@@ -129,8 +139,10 @@ class Plane(Object3D):
         self.normal = np.array(normal)
         self.point = np.array(point)
 
+    ################## TODO ################## # maybe needed to check direction
     def get_normal(self, _):
         return normalize(self.normal)
+    ##########################################
 
     def intersect(self, ray: Ray):
         v = self.point - ray.origin
@@ -159,12 +171,51 @@ class Triangle(Object3D):
 
     # computes normal to the trainagle surface. Pay attention to its direction!
     def compute_normal(self):
-        # TODO
-        pass
+        ################## TODO ##################
+        return normalize(np.cross(self.b - self.a, self.c - self.b))
+        ##########################################
 
+    ################## TODO ################## # maybe needed to check direction
+    def get_normal(self, _):
+        return normalize(self.normal)
+    ##########################################
+
+    # This function checks if a ray intersects the triangle
     def intersect(self, ray: Ray):
-        # TODO
-        pass
+        ################## TODO ##################
+        p = Plane(self.normal, self.a)
+        result = p.intersect(ray)
+        if result is None:
+            return None
+        t, _ = result
+        intersection = ray.origin + t * ray.direction
+        if self.is_inside(intersection):
+            return t, self
+        else:
+            return None
+        ##########################################
+        
+    ################## TODO ##################
+    # This function checks if a point is inside the triangle
+    def is_inside(self, point):
+        # Convert point to a numpy array if it isn't one
+        P = np.array(point)
+        
+        # Vectors from triangle points to the intersection point
+        AP = P - self.a
+        BP = P - self.b
+        CP = P - self.c
+        
+        # Calculate the degree of the angle between the vectors
+        angel_AP_PB = np.pi - np.arccos(np.dot(AP, -BP) / (np.linalg.norm(AP) * np.linalg.norm(-BP)))
+        angel_BP_PC = np.pi - np.arccos(np.dot(BP, -CP) / (np.linalg.norm(BP) * np.linalg.norm(-CP)))
+        angel_CP_PA = np.pi - np.arccos(np.dot(CP, -AP) / (np.linalg.norm(CP) * np.linalg.norm(-AP)))
+
+        # Check if the point is inside the triangle
+        if np.isclose(angel_AP_PB + angel_BP_PC + angel_CP_PA, 2*np.pi):
+            return True
+        return False
+    ##########################################
 
 class Pyramid(Object3D):
     """     
@@ -205,16 +256,26 @@ A /&&&&&&&&&&&&&&&&&&&&\ B &&&/ C
                  [4,1,0],
                  [4,2,1],
                  [2,4,0]]
-        # TODO
+        ################## TODO ##################
+        for idx in t_idx:
+            l.append(Triangle(self.v_list[idx[0]], self.v_list[idx[1]], self.v_list[idx[2]]))
+        ##########################################
         return l
 
     def apply_materials_to_triangles(self):
-        # TODO
-        pass
+        ################## TODO ##################
+        for t in self.triangle_list:
+            t.set_material(self.ambient, self.diffuse, self.specular, self.shininess, self.reflection)
+        ##########################################
 
     def intersect(self, ray: Ray):
-        # TODO
-        pass
+        ################## TODO ##################
+        for t in self.triangle_list:
+            result = t.intersect(ray)
+            if result is not None:
+                return result
+        return None
+        ##########################################
 
 class Sphere(Object3D):
     def __init__(self, center, radius: float):
@@ -222,6 +283,20 @@ class Sphere(Object3D):
         self.radius = radius
 
     def intersect(self, ray: Ray):
-        #TODO
-        pass
+        ################## TODO ##################
+        # Ray origin to sphere center
+        L = self.center - ray.origin
+        tca = np.dot(L, ray.direction)
+        d2 = np.dot(L, L) - tca * tca
+        if d2 > self.radius ** 2:
+            return None
+        thc = np.sqrt(self.radius ** 2 - d2)
+        t0 = tca - thc
+        t1 = tca + thc
+        if t0 < 0:
+            t0 = t1
+        if t0 < 0:
+            return None
+        return t0, self
+        ##########################################
 
