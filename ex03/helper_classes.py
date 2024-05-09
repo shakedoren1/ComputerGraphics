@@ -94,10 +94,12 @@ class SpotLight(LightSource):
         return np.linalg.norm(intersection - self.position)
         ##########################################
 
+    ######## GO OVER THIS FUNCTION AGAIN ########
     def get_intensity(self, intersection):
         ################## TODO ##################
         d = self.get_distance_from_light(intersection)
-        return None ######?
+        v = normalize(self.position - intersection)
+        return (self.intensity * (np.dot(v, self.direction))) / (self.kc + self.kl * d + self.kq * (d ** 2))
         ##########################################
 
 
@@ -268,13 +270,21 @@ A /&&&&&&&&&&&&&&&&&&&&\ B &&&/ C
             t.set_material(self.ambient, self.diffuse, self.specular, self.shininess, self.reflection)
         ##########################################
 
+    # This function checks if a ray intersects the pyramid
     def intersect(self, ray: Ray):
         ################## TODO ##################
-        for t in self.triangle_list:
-            result = t.intersect(ray)
+        t = np.inf
+        nearest_obj = None
+        for triangle in self.triangle_list:
+            result = triangle.intersect(ray)
             if result is not None:
-                return result
-        return None
+                t_obj, obj = result
+                if t_obj < t:
+                    t = t_obj
+                    nearest_obj = obj
+        if nearest_obj is None:
+            return None
+        return t, nearest_obj
         ##########################################
 
 class Sphere(Object3D):
@@ -282,17 +292,27 @@ class Sphere(Object3D):
         self.center = center
         self.radius = radius
 
+    ################## TODO ################## # maybe needed to check direction
+    def get_normal(self, point):
+        return normalize(point - self.center)
+    ##########################################
+
+    # This function checks if a ray intersects the sphere ####### Needs to go over!!!!!!
     def intersect(self, ray: Ray):
         ################## TODO ##################
         # Ray origin to sphere center
         L = self.center - ray.origin
+        # Distance from ray origin to the closest point on the ray to the sphere center
         tca = np.dot(L, ray.direction)
         d2 = np.dot(L, L) - tca * tca
+        # If the closest point is behind the ray
         if d2 > self.radius ** 2:
             return None
+        # Distance from the closest point to the intersection points
         thc = np.sqrt(self.radius ** 2 - d2)
         t0 = tca - thc
         t1 = tca + thc
+        # If the intersection points are behind the ray
         if t0 < 0:
             t0 = t1
         if t0 < 0:

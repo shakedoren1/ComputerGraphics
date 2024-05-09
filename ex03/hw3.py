@@ -18,7 +18,7 @@ def render_scene(camera, ambient, lights, objects, screen_size, max_depth):
 
             color = np.zeros(3)
 
-            # The reflection coefficient initialized
+            # reflection variable initialized
             reflection = 1.0
 
             # This is the main loop where each pixel color is computed.
@@ -34,7 +34,7 @@ def render_scene(camera, ambient, lights, objects, screen_size, max_depth):
                 intersection += 1e-4 * normal                
 
                 # Find the color of the pixel
-                illumination = get_color(origin, ambient, lights, objects, nearest_object, normal, intersection, max_depth, 1)
+                illumination = get_color(origin, ambient, lights, objects, nearest_object, normal, intersection)
 
                 # reflection calculation
                 color += reflection * illumination
@@ -51,11 +51,11 @@ def render_scene(camera, ambient, lights, objects, screen_size, max_depth):
 ############### TODO ###############
 
 # A function that calculates the color of a pixel according to the Phong reflection model
-def get_color(origin, ambient, lights, objects, nearest_object, normal, intersection, max_depth, level, reflection=1.0):
-    color = np.zeros((3))
+def get_color(origin, ambient, lights, objects, nearest_object, normal, intersection):
+    color = np.zeros(3, dtype=np.float64)
     
     # Ambient calculation
-    color = calc_ambient_color(nearest_object, ambient)
+    color = calc_ambient_color(nearest_object, ambient).astype(np.float64)
 
     for light in lights:
         light_ray = light.get_light_ray(intersection)
@@ -63,12 +63,27 @@ def get_color(origin, ambient, lights, objects, nearest_object, normal, intersec
         if is_shadowed(light, light_ray, intersection, objects):
             continue
         # Diffuse calculation
-        diffuse_light = calc_diffuse_color(nearest_object, normal, light_ray)
+        diffuse_light = calc_diffuse_color(nearest_object, normal, light_ray).astype(np.float64)
         # Specular calculation
-        specular_light = calc_specular_color(nearest_object, normal, light_ray, origin, intersection)
+        specular_light = calc_specular_color(nearest_object, normal, light_ray, origin, intersection).astype(np.float64)
         # Add the light to the color
-        color += (diffuse_light + specular_light) * light.get_intensity(intersection)
+        color += (diffuse_light + specular_light).astype(np.float64) * light.get_intensity(intersection).astype(np.float64)
     
+    # level += 1
+    # if level > max_depth:
+    #     return color
+    
+    # # Reflection calculation
+    # r_ray = Ray(intersection, reflected(light_ray.direction, normal))
+    # nearest_r_object, _, r_hit = r_ray.nearest_intersected_object(objects)
+    # if nearest_r_object is None:
+    #     return color
+    # normal_r = nearest_r_object.get_normal(r_hit)
+    # color += reflection * get_color(intersection, ambient, lights, objects, nearest_r_object, normal_r, r_hit, max_depth, level, nearest_object.reflection)
+
+    # Refractive calculation
+    ######## bonus
+
     # The color received
     return color
 
@@ -105,6 +120,37 @@ def your_own_scene():
     camera = np.array([0,0,1])
     lights = []
     objects = []
+    ############### TODO ###############
+    # Objects
+    # Background Plane
+    background = Plane([0, 0, 1], [0, 0, -2])  # Normal points towards the camera, positioned slightly away
+    background.set_material([0.3, 0.6, 0.9], [0.3, 0.6, 0.9], [0.1, 0.1, 0.9], 10, 0)  # Light blue color for the background
+    objects.append(background)
+
+    # Left eye
+    left_eye = Sphere([-0.4, 0.6, -0.5], 0.2)
+    left_eye.set_material([0.5, 1, 0.5], [0.5, 1, 0.5], [0.5, 1, 0.5], 5, 0.1)
+    objects.append(left_eye)
+    # Right eye
+    right_eye = Sphere([0.4, 0.6, -0.5], 0.2)
+    right_eye.set_material([0.5, 1, 0.5], [0.5, 1, 0.5], [0.5, 1, 0.5], 5, 0.1)
+    objects.append(right_eye)
+    # Mouth
+    mouth = Triangle([-0.2, 0.1, -0.5], [0.2, 0.1, -0.5], [0, -0.1, -0.5])
+    mouth.set_material([0.5, 1, 0.5], [0.5, 1, 0.5], [0.5, 1, 0.5], 5, 0.1)
+    objects.append(mouth)
+
+    # Ground Plane (for reflection)
+    ground = Plane([0, 2, 0.3], [0, -1, 0])  # Normal points upwards, positioned below the entire scene
+    ground.set_material([0.1, 0.1, 0.1], [0.1, 0.1, 0.1], [0.1, 0.1, 0.1], 10, 0.5)
+    objects.append(ground)
+
+    # Lights
+    # Spot Light in the middle of the scene
+    spotlight = SpotLight(intensity= np.array([0.6, 0.6, 0.6]),position=np.array([0,0,0]), direction=([0,0,1]), kc=0.1,kl=0.1,kq=0.1)
+    lights.append(spotlight)
+    ###################################
+
     return camera, lights, objects
 
 
