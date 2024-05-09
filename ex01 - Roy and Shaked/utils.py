@@ -52,7 +52,6 @@ class SeamImage:
             self.E = self.calc_gradient_magnitude()
         except NotImplementedError as e:
             print(e)
-        #################
 
         # additional attributes you might find useful
         self.seam_history = []
@@ -262,31 +261,31 @@ class VerticalSeamImage(SeamImage):
             self.update_idx_maps(seam_idx, horizontal)
                         
             # delete these seam_idx pixels from self.resized_rgb
-            self.remove_seam()
+            self.remove_seam(seam_idx)
             
             # add seam_idx to seam_history
             self.seam_history.append((n, seam_idx))
     
     def color_seam(self, seam_idx, horizontal):
-        # Iterate through each index (i0, j0) in seam_idx
-        for i0, j0 in seam_idx:
+        # Iterate through each index (i, j) in seam_idx
+        for i, j in seam_idx:
             # Color the pixel in self.seams_rgb taking into account the horizontal flag
             if horizontal:
-                self.seams_rgb[self.idx_map_h[i0, j0], self.idx_map_v[i0, j0]] = [1, 0, 0]
+                self.seams_rgb[self.idx_map_h[i, j], self.idx_map_v[i, j]] = [1, 0, 0]
             else:
-                self.seams_rgb[self.idx_map_v[i0, j0], self.idx_map_h[i0, j0]] = [1, 0, 0]
+                self.seams_rgb[self.idx_map_v[i, j], self.idx_map_h[i, j]] = [1, 0, 0]
                 
         
     def update_idx_maps(self, seam_idx, horizontal):
-        # Iterate through each index (i0, j0) in seam_idx
-        for i0, j0 in seam_idx:
+        # Iterate through each index (i, j) in seam_idx
+        for i, j in seam_idx:
             if horizontal:
                 # Update vertical idx map
-                self.idx_map_v[i0, j0:] += 1
+                self.idx_map_v[i, j:] += 1
 
             else:
                 # Update horizontal idx map
-                self.idx_map_h[i0, j0:] += 1
+                self.idx_map_h[i, j:] += 1
 
 
     def paint_seams(self):
@@ -327,7 +326,7 @@ class VerticalSeamImage(SeamImage):
         """
         i, j = idx
         seam_idx = [idx]
-        for r in range(self.M.shape[0] - 1, 0, -1):
+        for _ in range(self.M.shape[0] - 1, 0, -1):
             next_step = self.backtrack_mat[i,j].tolist()
             seam_idx.insert(0, next_step)
             i, j = next_step
@@ -336,7 +335,7 @@ class VerticalSeamImage(SeamImage):
             
 
     # @NI_decor
-    def remove_seam(self):
+    def remove_seam(self, seam_idx):
         """ Removes a seam from self.rgb (you may create a resized version, like self.resized_rgb)
 
         Guidelines & hints:
@@ -346,14 +345,9 @@ class VerticalSeamImage(SeamImage):
         h, w = self.M.shape
         self.mask = np.ones((h, w), dtype=bool)
         
-        # find minimum value in M's last row
-        j = np.argmin(self.M[-1])
-        
         # Remove pixels specified by seam_idx from resized_gs
-        for i in reversed(range(h)):
+        for i,j in seam_idx:
             self.mask[i, j] = False
-            j = self.backtrack_mat[i, j].tolist()[1]
-
         self.resized_gs = self.resized_gs[self.mask].reshape(h, w - 1, 1)
         
         # Apply the mask to each color channel
@@ -431,15 +425,10 @@ class SCWithObjRemoval(VerticalSeamImage):
             self.preprocess_masks()
         except KeyError:
             print("TODO (Bonus): Create and add Jurassic's mask")
-        
-        # try:
-        #     self.M, self.backtrack_mat = self.calc_M_bt()
-        # except NotImplementedError as e:
-        #     print(e)
 
     def preprocess_masks(self):
         """ Mask preprocessing.
-            different from images, binary masks are not continous. We have to make sure that every pixel is either 0 or 1.
+            different from images, binary masks are not continuous. We have to make sure that every pixel is either 0 or 1.
 
             Guidelines & hints:
                 - for every active mask we need make it binary: {0,1}
@@ -456,6 +445,7 @@ class SCWithObjRemoval(VerticalSeamImage):
                 - you need to apply the masks on other matrices!
                 - think how to force seams to pass through a mask's object..
         """
+        # Add a constant integer to E and then reduce to 0 each pixel that appears in the mask
         self.E = self.E + 20
         for mask_name, mask in self.obj_masks.items():
             if mask_name in self.active_masks:
@@ -464,7 +454,7 @@ class SCWithObjRemoval(VerticalSeamImage):
 
     def init_mats(self):
         self.E = self.calc_gradient_magnitude()
-        self.apply_mask() # -> added
+        self.apply_mask()
         self.M, self.backtrack_mat = self.calc_M_bt(self.E)
         self.mask = np.ones_like(self.M, dtype=bool)
 
@@ -474,10 +464,10 @@ class SCWithObjRemoval(VerticalSeamImage):
         self.__init__(active_masks=active_masks, img_path=self.path)
         self.apply_mask()
 
-    def remove_seam(self):
+    def remove_seam(self, seam_idx):
         """ A wrapper for super.remove_seam method. takes care of the masks.
         """
-        super().remove_seam()
+        super().remove_seam(seam_idx)
         for k in self.active_masks:
             self.obj_masks[k] = self.obj_masks[k][self.mask].reshape(self.h, self.w)
 
