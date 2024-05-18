@@ -123,7 +123,7 @@ def your_own_scene():
 
     # Lights
     # Spot Light in the middle of the scene
-    spotlight = SpotLight(intensity= np.array([0.6, 0.6, 0.6]),position=np.array([0,0,0]), direction=([0,0,1]), kc=0.1,kl=0.1,kq=0.1)
+    spotlight = SpotLight(intensity= np.array([0.6, 0.6, 0.6]),position=np.array([0,0,0]), direction=([0,0,-1]), kc=0.1,kl=0.1,kq=0.1)
     lights.append(spotlight)
 
     return camera, lights, objects

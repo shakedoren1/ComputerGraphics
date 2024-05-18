@@ -25,9 +25,9 @@ class DirectionalLight(LightSource):
 
     def __init__(self, intensity, direction):
         super().__init__(intensity)
-        self.direction = normalize(np.array(direction))
+        self.direction = - normalize(np.array(direction))
 
-    # This function returns the ray that goes from the light source to a point
+    # This function returns the ray that goes from a point to the light source
     def get_light_ray(self,intersection_point):
         return Ray(intersection_point, self.direction)
         
@@ -66,7 +66,7 @@ class SpotLight(LightSource):
     def __init__(self, intensity, position, direction, kc, kl, kq):
         super().__init__(intensity)
         self.position = np.array(position)
-        self.direction = np.array(direction)
+        self.direction = - normalize(np.array(direction))
         self.kc = kc
         self.kl = kl
         self.kq = kq
