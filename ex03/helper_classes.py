@@ -10,9 +10,7 @@ def normalize(vector):
 # This function returns the vector that reflects from the surface
 def reflected(vector, axis):
     v = np.array([0,0,0])
-    ################## TODO ##################
     v = vector - 2 * np.dot(vector, axis) * axis
-    ##########################################
     return v
 
 ## Lights
@@ -27,27 +25,19 @@ class DirectionalLight(LightSource):
 
     def __init__(self, intensity, direction):
         super().__init__(intensity)
-        ################## TODO ##################
-        self.direction = np.array(direction)
-        ##########################################
+        self.direction = normalize(np.array(direction))
 
     # This function returns the ray that goes from the light source to a point
     def get_light_ray(self,intersection_point):
-        ################## TODO ##################
         return Ray(intersection_point, self.direction)
-        ##########################################
-
+        
     # This function returns the distance from a point to the light source
     def get_distance_from_light(self, _):
-        ################## TODO ##################
         return np.inf
-        ##########################################
 
     # This function returns the light intensity at a point
     def get_intensity(self, _):
-        ################## TODO ##################
         return self.intensity
-        ##########################################
 
 
 class PointLight(LightSource):
@@ -75,32 +65,23 @@ class PointLight(LightSource):
 class SpotLight(LightSource):
     def __init__(self, intensity, position, direction, kc, kl, kq):
         super().__init__(intensity)
-        ################## TODO ##################
         self.position = np.array(position)
         self.direction = np.array(direction)
         self.kc = kc
         self.kl = kl
         self.kq = kq
-        ##########################################
 
     # This function returns the ray that goes from the light source to a point
     def get_light_ray(self, intersection):
-        ################## TODO ##################
         return Ray(intersection, normalize(self.position - intersection))
-        ##########################################
 
     def get_distance_from_light(self, intersection):
-        ################## TODO ##################
         return np.linalg.norm(intersection - self.position)
-        ##########################################
 
-    ######## GO OVER THIS FUNCTION AGAIN ########
     def get_intensity(self, intersection):
-        ################## TODO ##################
         d = self.get_distance_from_light(intersection)
         v = normalize(self.position - intersection)
         return (self.intensity * (np.dot(v, self.direction))) / (self.kc + self.kl * d + self.kq * (d ** 2))
-        ##########################################
 
 
 class Ray:
@@ -114,7 +95,6 @@ class Ray:
         intersections = None
         nearest_object = None
         min_distance = np.inf
-        ############### TODO ###############
         for obj in objects:
             result = obj.intersect(self)
             if result is not None:
@@ -123,7 +103,6 @@ class Ray:
                     nearest_object = obj
                     min_distance = t
                     intersections = self.origin + t * self.direction
-        ###################################
         return nearest_object, min_distance, intersections
 
 
@@ -141,10 +120,8 @@ class Plane(Object3D):
         self.normal = np.array(normal)
         self.point = np.array(point)
 
-    ################## TODO ################## # maybe needed to check direction
     def get_normal(self, _):
         return normalize(self.normal)
-    ##########################################
 
     def intersect(self, ray: Ray):
         v = self.point - ray.origin
@@ -173,18 +150,13 @@ class Triangle(Object3D):
 
     # computes normal to the trainagle surface. Pay attention to its direction!
     def compute_normal(self):
-        ################## TODO ##################
         return normalize(np.cross(self.b - self.a, self.c - self.b))
-        ##########################################
 
-    ################## TODO ################## # maybe needed to check direction
     def get_normal(self, _):
         return normalize(self.normal)
-    ##########################################
 
     # This function checks if a ray intersects the triangle
     def intersect(self, ray: Ray):
-        ################## TODO ##################
         p = Plane(self.normal, self.a)
         result = p.intersect(ray)
         if result is None:
@@ -195,9 +167,7 @@ class Triangle(Object3D):
             return t, self
         else:
             return None
-        ##########################################
         
-    ################## TODO ##################
     # This function checks if a point is inside the triangle
     def is_inside(self, point):
         # Convert point to a numpy array if it isn't one
@@ -217,7 +187,7 @@ class Triangle(Object3D):
         if np.isclose(angel_AP_PB + angel_BP_PC + angel_CP_PA, 2*np.pi):
             return True
         return False
-    ##########################################
+
 
 class Pyramid(Object3D):
     """     
@@ -258,21 +228,16 @@ A /&&&&&&&&&&&&&&&&&&&&\ B &&&/ C
                  [4,1,0],
                  [4,2,1],
                  [2,4,0]]
-        ################## TODO ##################
         for idx in t_idx:
             l.append(Triangle(self.v_list[idx[0]], self.v_list[idx[1]], self.v_list[idx[2]]))
-        ##########################################
         return l
 
     def apply_materials_to_triangles(self):
-        ################## TODO ##################
         for t in self.triangle_list:
             t.set_material(self.ambient, self.diffuse, self.specular, self.shininess, self.reflection)
-        ##########################################
 
     # This function checks if a ray intersects the pyramid
     def intersect(self, ray: Ray):
-        ################## TODO ##################
         t = np.inf
         nearest_obj = None
         for triangle in self.triangle_list:
@@ -285,38 +250,39 @@ A /&&&&&&&&&&&&&&&&&&&&\ B &&&/ C
         if nearest_obj is None:
             return None
         return t, nearest_obj
-        ##########################################
 
 class Sphere(Object3D):
     def __init__(self, center, radius: float):
         self.center = center
         self.radius = radius
 
-    ################## TODO ################## # maybe needed to check direction
     def get_normal(self, point):
         return normalize(point - self.center)
-    ##########################################
 
     # This function checks if a ray intersects the sphere ####### Needs to go over!!!!!!
     def intersect(self, ray: Ray):
-        ################## TODO ##################
-        # Ray origin to sphere center
-        L = self.center - ray.origin
-        # Distance from ray origin to the closest point on the ray to the sphere center
-        tca = np.dot(L, ray.direction)
-        d2 = np.dot(L, L) - tca * tca
-        # If the closest point is behind the ray
-        if d2 > self.radius ** 2:
+        # Let R(t) be the point in the ray for t, and S be the sphere equation
+        # by comparing R(t) = S we isolate t and get a quadratic equation
+        # let L = ray origin - sphere center, D is ray direction
+        # t^2 (D D) + 2t (L D) + (L L - r^2) = 0
+        L = ray.origin - self.center
+        a = np.dot(ray.direction, ray.direction)
+        b = np.dot(L, ray.direction) * 2.0
+        c = np.dot(L, L) - (self.radius ** 2)
+        
+        # compute the discriminant
+        disc = b * b - 4 * a * c
+        
+        if disc < 0:
             return None
-        # Distance from the closest point to the intersection points
-        thc = np.sqrt(self.radius ** 2 - d2)
-        t0 = tca - thc
-        t1 = tca + thc
-        # If the intersection points are behind the ray
-        if t0 < 0:
-            t0 = t1
-        if t0 < 0:
+        
+        sqrtDisc = np.sqrt(disc)
+        t1 = (-b - sqrtDisc) / (2.0 * a)
+        t2 = (-b + sqrtDisc) / (2.0 * a)
+        
+        # return the closer intersection, or None if t1 and t2 are negative
+        if t1 < 0:
+            t1 = t2
+        if t1 < 0:
             return None
-        return t0, self
-        ##########################################
-
+        return t1, self

@@ -22,7 +22,6 @@ def render_scene(camera, ambient, lights, objects, screen_size, max_depth):
             reflection = 1.0
 
             # This is the main loop where each pixel color is computed.
-            ############### TODO ###############
             for _ in range(max_depth):
                 # Find the closest intersection with an object
                 nearest_object, _, intersection = ray.nearest_intersected_object(objects)
@@ -40,15 +39,11 @@ def render_scene(camera, ambient, lights, objects, screen_size, max_depth):
                 color += reflection * illumination
                 reflection *= nearest_object.reflection
                 ray = Ray(intersection, reflected(ray.direction, normal))
-
-            ###################################
             
             # We clip the values between 0 and 1 so all pixel values will make sense.
             image[i, j] = np.clip(color,0,1)
 
     return image
-
-############### TODO ###############
 
 # A function that calculates the color of a pixel according to the Phong reflection model
 def get_color(origin, ambient, lights, objects, nearest_object, normal, intersection):
@@ -68,21 +63,6 @@ def get_color(origin, ambient, lights, objects, nearest_object, normal, intersec
         specular_light = calc_specular_color(nearest_object, normal, light_ray, origin, intersection).astype(np.float64)
         # Add the light to the color
         color += (diffuse_light + specular_light).astype(np.float64) * light.get_intensity(intersection).astype(np.float64)
-    
-    # level += 1
-    # if level > max_depth:
-    #     return color
-    
-    # # Reflection calculation
-    # r_ray = Ray(intersection, reflected(light_ray.direction, normal))
-    # nearest_r_object, _, r_hit = r_ray.nearest_intersected_object(objects)
-    # if nearest_r_object is None:
-    #     return color
-    # normal_r = nearest_r_object.get_normal(r_hit)
-    # color += reflection * get_color(intersection, ambient, lights, objects, nearest_r_object, normal_r, r_hit, max_depth, level, nearest_object.reflection)
-
-    # Refractive calculation
-    ######## bonus
 
     # The color received
     return color
@@ -112,15 +92,11 @@ def calc_specular_color(nearest_object, normal, light_ray, origin, intersection)
     R = normalize(reflected(light_ray.direction, normal))
     return np.array(nearest_object.specular) * ((np.dot(V, R)) ** nearest_object.shininess)
 
-###################################
-
 # Write your own objects and lights
-# TODO
 def your_own_scene():
     camera = np.array([0,0,1])
     lights = []
     objects = []
-    ############### TODO ###############
     # Objects
     # Background Plane
     background = Plane([0, 0, 1], [0, 0, -2])  # Normal points towards the camera, positioned slightly away
@@ -149,7 +125,6 @@ def your_own_scene():
     # Spot Light in the middle of the scene
     spotlight = SpotLight(intensity= np.array([0.6, 0.6, 0.6]),position=np.array([0,0,0]), direction=([0,0,1]), kc=0.1,kl=0.1,kq=0.1)
     lights.append(spotlight)
-    ###################################
 
     return camera, lights, objects
 
